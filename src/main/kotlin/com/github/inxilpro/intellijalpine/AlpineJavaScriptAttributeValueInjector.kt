@@ -4,20 +4,26 @@ import com.intellij.lang.injection.MultiHostInjector
 import com.intellij.lang.injection.MultiHostRegistrar
 import com.intellij.lang.javascript.JavascriptLanguage
 import com.intellij.openapi.util.TextRange
+import com.intellij.patterns.XmlAttributeValuePattern
 import com.intellij.psi.ElementManipulators
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiLanguageInjectionHost
 import com.intellij.psi.html.HtmlTag
 import com.intellij.psi.impl.source.html.dtd.HtmlAttributeDescriptorImpl
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.util.parents
 import com.intellij.psi.xml.XmlAttribute
 import com.intellij.psi.xml.XmlAttributeValue
 import org.apache.commons.lang3.tuple.MutablePair
+import org.apache.html.dom.HTMLBuilder
+import org.apache.html.dom.HTMLDocumentImpl
+import org.w3c.dom.html.HTMLFormElement
+import org.w3c.dom.html.HTMLTitleElement
 
 class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
     private companion object {
         val globalState =
-            """
+                """
                 /** @type {Object.<string, HTMLElement>} */
                 let ${'$'}refs;
                 
@@ -27,7 +33,7 @@ class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
             """.trimIndent()
 
         val alpineWizardState =
-            """
+                """
                 class AlpineWizardStep {
                 	/** @type {HTMLElement} */ el;
                 	/** @type {string} */ title;
@@ -71,7 +77,7 @@ class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
             """.trimIndent()
 
         val globalMagics =
-            """
+                """
                 /**
                  * @param {*<ValueToPersist>} value
                  * @return {ValueToPersist}
@@ -89,8 +95,8 @@ class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
             """.trimIndent()
 
         val coreMagics =
-            """
-                /** @type {HTMLElement} */
+                """
+                /** @type {elType} */
                 let ${'$'}el;
                 
                 /** @type {HTMLElement} */
@@ -233,9 +239,10 @@ class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
 
     private fun getPrefixAndSuffix(directive: String, host: XmlAttributeValue): Pair<String, String> {
         val context = MutablePair(globalMagics, "")
+        val elType = HTMLDocumentImpl().createElement(XmlAttributeValuePattern.getLocalName(host)).nodeName
 
         if ("x-data" != directive) {
-            context.left = coreMagics + context.left
+            context.left = coreMagics.replace("{elType}", elType) + context.left
         }
 
         if ("x-spread" == directive) {
