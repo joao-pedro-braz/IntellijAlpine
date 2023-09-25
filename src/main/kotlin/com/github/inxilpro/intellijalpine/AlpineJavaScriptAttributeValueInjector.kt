@@ -12,12 +12,14 @@ import com.intellij.psi.impl.source.html.dtd.HtmlAttributeDescriptorImpl
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.xml.XmlAttribute
 import com.intellij.psi.xml.XmlAttributeValue
+import com.intellij.psi.xml.XmlTag
 import org.apache.commons.lang3.tuple.MutablePair
+import org.apache.html.dom.HTMLDocumentImpl
 
 class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
     private companion object {
         val globalState =
-            """
+                """
                 /** @type {Object.<string, HTMLElement>} */
                 let ${'$'}refs;
                 
@@ -27,7 +29,7 @@ class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
             """.trimIndent()
 
         val alpineWizardState =
-            """
+                """
                 class AlpineWizardStep {
                 	/** @type {HTMLElement} */ el;
                 	/** @type {string} */ title;
@@ -71,7 +73,7 @@ class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
             """.trimIndent()
 
         val globalMagics =
-            """
+                """
                 /**
                  * @param {*<ValueToPersist>} value
                  * @return {ValueToPersist}
@@ -89,11 +91,11 @@ class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
             """.trimIndent()
 
         val coreMagics =
-            """
-                /** @type {HTMLElement} */
+                """
+                /** @type {elType} */
                 let ${'$'}el;
                 
-                /** @type {HTMLElement} */
+                /** @type {rootType} */
                 let ${'$'}root;
 
                 /**
@@ -235,7 +237,7 @@ class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
         val context = MutablePair(globalMagics, "")
 
         if ("x-data" != directive) {
-            context.left = coreMagics + context.left
+            context.left = addTypingToCoreMagics(host) + context.left
         }
 
         if ("x-spread" == directive) {
@@ -287,5 +289,38 @@ class AlpineJavaScriptAttributeValueInjector : MultiHostInjector {
                 context.right = "$suffix\n\n}"
             }
         }
+    }
+
+    private fun addTypingToCoreMagics(host: XmlAttributeValue): String {
+        var typedCoreMagics = coreMagics
+        val attribute = host.parent as XmlAttribute
+        val tag = attribute.parent
+
+        fun jsElementNameFromXmlTag(tag: XmlTag): String {
+            return HTMLDocumentImpl().createElement(tag.localName).javaClass.simpleName.removeSuffix("Impl")
+        }
+
+        // Determine type for $el
+        run {
+            val elType = jsElementNameFromXmlTag(tag)
+            typedCoreMagics = typedCoreMagics.replace("{elType}", elType)
+        }
+
+        // Determine type for $root
+        run {
+            var parent = tag.parentTag
+            var elType = "HTMLElement"
+            do {
+                if (parent?.getAttribute("x-data") != null) {
+                    elType = jsElementNameFromXmlTag(parent)
+                    break
+                }
+
+                parent = parent?.parentTag
+            } while (parent != null)
+            typedCoreMagics = typedCoreMagics.replace("{rootType}", elType)
+        }
+
+        return typedCoreMagics
     }
 }
