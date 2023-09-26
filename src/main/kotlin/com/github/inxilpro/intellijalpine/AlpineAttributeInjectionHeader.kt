@@ -33,7 +33,7 @@ object AlpineAttributeInjectionHeader {
     fun serialize(startOffset: Int, data: List<XmlAttribute>): String {
         val mappedData = data.flatMap { attribute ->
             val expression = JSInheritedLanguagesHelper.createExpressionFromText(attribute.value!!, attribute) as JSObjectLiteralExpression
-            expression.properties.filter { it.firstChild.elementType.toString() == "JS:IDENTIFIER" }.map { DataIndicesHeader(attribute.textOffset, attribute.parent?.textOffset!!, it.firstChild.text.toString()) }
+            expression.properties.map { DataIndicesHeader(attribute.textOffset, attribute.parent?.textOffset!!, it.name.toString()) }
         }
         val json = Json.encodeToString(Header(Alpine.NAMESPACE, Int.MAX_VALUE.toString(), mappedData))
         return patchStartOffset(json, startOffset)
